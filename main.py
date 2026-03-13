@@ -7,7 +7,7 @@ from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any, Callable
-from urllib.parse import parse_qs, quote, urlparse
+from urllib.parse import parse_qs, quote, unquote, urlparse
 
 from astrbot.api import logger
 from astrbot.api.event import AstrMessageEvent, MessageChain, filter
@@ -43,6 +43,16 @@ def _safe_bool(value: Any, default: bool) -> bool:
         if lowered in {"0", "false", "no", "off"}:
             return False
     return default
+
+
+def _decode_owner_key(raw: str) -> str:
+    value = str(raw or "").strip()
+    for _ in range(3):
+        decoded = unquote(value)
+        if decoded == value:
+            break
+        value = decoded
+    return value
 
 
 class OwnerStore:
@@ -220,7 +230,10 @@ class KuroBridge:
                 if parsed.path == "/":
                     owner_key = (parse_qs(parsed.query).get("user") or [""])[0].strip()
                     if owner_key:
+                        decoded_owner_key = _decode_owner_key(owner_key)
                         bridge.owner_store.bind(owner_key, sid)
+                        if decoded_owner_key and decoded_owner_key != owner_key:
+                            bridge.owner_store.bind(decoded_owner_key, sid)
                     self._send_html(core.build_html(), cookie_sid)
                     return
 
