@@ -10,7 +10,7 @@ from typing import Any, Callable
 from urllib.parse import parse_qs, quote, urlparse
 
 from astrbot.api import logger
-from astrbot.api.event import AstrMessageEvent, filter
+from astrbot.api.event import AstrMessageEvent, MessageChain, filter
 from astrbot.api.star import Context, Star, register
 
 from . import kuro_core as core
@@ -573,6 +573,7 @@ class KuroSignPlugin(Star):
         self._scheduler_stop = threading.Event()
         self._scheduler_thread = threading.Thread(target=self._schedule_loop, daemon=True)
         self._scheduler_thread.start()
+        self._login_watch_tasks: dict[str, asyncio.Task] = {}
 
     def _cfg(self, key: str, default: Any) -> Any:
         if isinstance(self.config, dict):
@@ -673,6 +674,36 @@ class KuroSignPlugin(Star):
                 return payload
         return None
 
+    async def _send_private_text(self, owner_key: str, text: str) -> bool:
+        try:
+            await self.context.send_message(owner_key, MessageChain().message(text))
+            return True
+        except Exception as exc:
+            logger.warning(f"kuro proactive notify failed for {owner_key}: {exc}")
+            return False
+
+    def _start_login_watch(self, owner_key: str) -> None:
+        old_task = self._login_watch_tasks.get(owner_key)
+        if old_task and not old_task.done():
+            old_task.cancel()
+
+        async def _watch() -> None:
+            payload = await self._wait_login_success(owner_key)
+            if not payload:
+                return
+            user_name = payload.get("userName") or payload.get("userId") or "-"
+            await self._send_private_text(owner_key, f"登录成功：{user_name}")
+
+        task = asyncio.create_task(_watch())
+        self._login_watch_tasks[owner_key] = task
+
+        def _cleanup(done_task: asyncio.Task) -> None:
+            current = self._login_watch_tasks.get(owner_key)
+            if current is done_task:
+                self._login_watch_tasks.pop(owner_key, None)
+
+        task.add_done_callback(_cleanup)
+
     @filter.command("kuro_login")
     async def kuro_login(self, event: AstrMessageEvent):
         owner_key = self._owner_key(event)
@@ -682,10 +713,7 @@ class KuroSignPlugin(Star):
             f"{url}\n\n"
             "登录成功后可执行 /kuro_sign"
         )
-        logged_in_payload = await self._wait_login_success(owner_key)
-        if logged_in_payload:
-            user_name = logged_in_payload.get("userName") or logged_in_payload.get("userId") or "-"
-            yield event.plain_result(f"登录成功：{user_name}")
+        self._start_login_watch(owner_key)
 
     @filter.command("kuro_status")
     async def kuro_status(self, event: AstrMessageEvent):
@@ -782,4 +810,9 @@ class KuroSignPlugin(Star):
     async def terminate(self):
         logger.info("stopping kuro sign scheduler and local server")
         self._scheduler_stop.set()
+        for task in list(self._login_watch_tasks.values()):
+            task.cancel()
+        if self._login_watch_tasks:
+            await asyncio.gather(*self._login_watch_tasks.values(), return_exceptions=True)
+        self._login_watch_tasks.clear()
         await asyncio.to_thread(self.bridge.stop)
