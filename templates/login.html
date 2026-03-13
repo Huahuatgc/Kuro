@@ -294,9 +294,30 @@
       resultBox.innerHTML = `<div>${escapeHtml(summary).replace(/\\n/g, "<br>")}</div><details><summary>原始响应</summary><pre>${raw}</pre></details>`;
     }
 
-    function validatePhone() { return /^1\\d{10}$/.test(phoneInput.value.trim()); }
-    function validateCode() { return /^\\d{6}$/.test(codeInput.value.trim()); }
+    function normalizePhone(raw) {
+      return String(raw || "").replace(/\D/g, "").slice(0, 11);
+    }
+
+    function normalizeCode(raw) {
+      return String(raw || "").replace(/\D/g, "").slice(0, 6);
+    }
+
+    function validatePhone() { return /^1\d{10}$/.test(normalizePhone(phoneInput.value)); }
+    function validateCode() { return /^\d{6}$/.test(normalizeCode(codeInput.value)); }
+
+    function syncPrefilledValues() {
+      const normalizedPhone = normalizePhone(phoneInput.value);
+      if (phoneInput.value !== normalizedPhone) {
+        phoneInput.value = normalizedPhone;
+      }
+      const normalizedCode = normalizeCode(codeInput.value);
+      if (codeInput.value !== normalizedCode) {
+        codeInput.value = normalizedCode;
+      }
+    }
+
     function refreshState() {
+      syncPrefilledValues();
       sendBtn.disabled = !validatePhone();
       loginBtn.disabled = !(validatePhone() && validateCode());
     }
@@ -309,12 +330,15 @@
     window.addEventListener("pageshow", () => {
       setTimeout(refreshState, 50);
       setTimeout(refreshState, 500);
+      setTimeout(refreshState, 1500);
     });
+    window.addEventListener("focus", refreshState);
+    document.addEventListener("visibilitychange", refreshState);
     let warmupTick = 0;
     const warmupTimer = setInterval(() => {
       refreshState();
       warmupTick += 1;
-      if (warmupTick >= 20) {
+      if (warmupTick >= 40) {
         clearInterval(warmupTimer);
       }
     }, 300);
@@ -354,7 +378,7 @@
           validate.captcha_id = "%CAPTCHA_ID%";
           setStatus("正在请求发送短信...");
           try {
-            const payload = await postJson("/api/send_sms", { mobile: phoneInput.value.trim(), geeTestData: validate });
+            const payload = await postJson("/api/send_sms", { mobile: normalizePhone(phoneInput.value), geeTestData: validate });
             setStatus("短信请求已发送，请查看结果。");
             setResult(payload);
           } catch (err) {
@@ -375,7 +399,7 @@
       setStatus("正在登录...");
       resultBox.style.display = "none";
       try {
-        const payload = await postJson("/api/login", { mobile: phoneInput.value.trim(), code: codeInput.value.trim() });
+        const payload = await postJson("/api/login", { mobile: normalizePhone(phoneInput.value), code: normalizeCode(codeInput.value) });
         setStatus("登录请求已完成。");
         setResult(payload);
         if (payload && payload.data && payload.data.token) {
