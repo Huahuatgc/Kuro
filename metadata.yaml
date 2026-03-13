@@ -1,6 +1,6 @@
 name: astrbot_plugin_kuro_sign
 display_name: Kuro Sign
-author: OpenAI
+author: Huahuatgc
 version: 0.3.0
-description: AstrBot 插件：网页登录 Kuro、快捷签到、定时签到与管理员 WebUI 控制台
-repo: local
+description: 基于网页登录获取 Kuro token，支持鸣潮签到、社区签到、定时签到和管理员 WebUI。
+repo: https://github.com/Huahuatgc/astrbot_plugin_kuro_sign
