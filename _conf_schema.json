@@ -1,18 +1,39 @@
-{
+﻿{
   "host": {
     "type": "string",
-    "description": "本地网页登录服务监听地址，公网场景建议 0.0.0.0",
+    "description": "登录/管理网页监听地址，公网部署建议 0.0.0.0",
     "default": "0.0.0.0"
   },
   "port": {
     "type": "int",
-    "description": "本地网页登录服务监听端口",
+    "description": "网页登录与 WebUI 控制台端口",
     "default": 8765
   },
   "public_ip": {
     "type": "string",
-    "description": "只填公网 IP 或域名，插件会自动拼接登录地址",
+    "description": "只填公网 IP 或域名，插件会自动拼接 URL",
     "default": "",
-    "hint": "示例: 1.2.3.4 或 bot.example.com，回复链接会自动变成 http://公网IP:端口/?user=..."
+    "hint": "示例: 1.2.3.4 或 bot.example.com，返回链接会自动变成 http://公网IP:端口/..."
+  },
+  "admin_ids": {
+    "type": "list",
+    "description": "管理员 ID 列表（sender_id 或 unified_msg_origin）",
+    "default": [],
+    "hint": "为空时，所有管理员命令和 /kuro_admin 将拒绝访问"
+  },
+  "admin_url_ttl_seconds": {
+    "type": "int",
+    "description": "管理员 WebUI 临时链接有效期（秒）",
+    "default": 900
+  },
+  "auto_sign_enabled": {
+    "type": "bool",
+    "description": "是否启用定时全量签到",
+    "default": false
+  },
+  "auto_sign_time": {
+    "type": "string",
+    "description": "定时签到时间，格式 HH:MM（24 小时）",
+    "default": "04:05"
   }
 }
