@@ -44,9 +44,17 @@ class OwnerStore:
 
 
 class KuroBridge:
-    def __init__(self, host: str, port: int, public_base_url: str, owner_store: OwnerStore):
+    def __init__(
+        self,
+        host: str,
+        port: int,
+        owner_store: OwnerStore,
+        public_ip: str = "",
+        public_base_url: str = "",
+    ):
         self.host = host
         self.port = port
+        self.public_ip = public_ip.strip()
         self.public_base_url = public_base_url.strip()
         self.owner_store = owner_store
         self._server: ThreadingHTTPServer | None = None
@@ -190,8 +198,23 @@ class KuroBridge:
 
     def login_url(self, owner_key: str) -> str:
         self.ensure_started()
-        base = self.public_base_url.rstrip("/") if self.public_base_url else f"http://{self.host}:{self.port}"
+        base = self._resolve_public_base()
         return f"{base}/?user={quote(owner_key, safe='')}"
+
+    def _resolve_public_base(self) -> str:
+        # Preferred mode: user only sets public IP/domain and plugin auto-fills scheme+port.
+        if self.public_ip:
+            ip_or_host = self.public_ip.strip().rstrip("/")
+            if ip_or_host.startswith(("http://", "https://")):
+                return ip_or_host
+            if ":" in ip_or_host:
+                return f"http://{ip_or_host}"
+            return f"http://{ip_or_host}:{self.port}"
+
+        # Backward compatibility for old config.
+        if self.public_base_url:
+            return self.public_base_url.rstrip("/")
+        return f"http://{self.host}:{self.port}"
 
     def status(self, owner_key: str) -> dict[str, Any]:
         sid = self.owner_store.get(owner_key)
@@ -275,18 +298,24 @@ def fmt_bbs_result(payload: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
-@register("astrbot_plugin_kuro_sign", "Kuro Sign", "本地网页登录获取 Kuro token 并执行签到", "0.2.0")
+@register("astrbot_plugin_kuro_sign", "Kuro Sign", "本地网页登录获取 Kuro token 并执行签到", "0.2.1")
 class KuroSignPlugin(Star):
     def __init__(self, context: Context, config: dict | None = None):
         super().__init__(context)
         self.config = config or {}
         plugin_dir = Path(__file__).resolve().parent
         owner_store = OwnerStore(plugin_dir / "data" / "owner_map.json")
+        host = str(self._cfg("host", "0.0.0.0"))
+        public_ip = str(self._cfg("public_ip", "")).strip()
+        if public_ip and host in ("127.0.0.1", "localhost"):
+            # Public URL is configured but bind address is local-only: auto-fix.
+            host = "0.0.0.0"
         self.bridge = KuroBridge(
-            host=self._cfg("host", "127.0.0.1"),
+            host=host,
             port=int(self._cfg("port", 8765)),
-            public_base_url=self._cfg("public_base_url", ""),
             owner_store=owner_store,
+            public_ip=public_ip,
+            public_base_url=str(self._cfg("public_base_url", "")),
         )
 
     def _cfg(self, key: str, default: Any) -> Any:
@@ -340,4 +369,3 @@ class KuroSignPlugin(Star):
     async def terminate(self):
         logger.info("stopping kuro sign local server")
         await asyncio.to_thread(self.bridge.stop)
-

@@ -1,6 +1,6 @@
 name: astrbot_plugin_kuro_sign
 display_name: Kuro Sign
 author: OpenAI
-version: 0.2.0
+version: 0.2.1
 description: 独立版 AstrBot 插件，通过本地网页登录获取 Kuro token，并执行鸣潮签到和社区签到任务
 repo: local
