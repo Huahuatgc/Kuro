@@ -1,0 +1,18 @@
+{
+  "host": {
+    "type": "string",
+    "description": "本地网页登录服务监听地址",
+    "default": "127.0.0.1"
+  },
+  "port": {
+    "type": "int",
+    "description": "本地网页登录服务监听端口",
+    "default": 8765
+  },
+  "public_base_url": {
+    "type": "string",
+    "description": "登录页对外访问地址，留空时使用 http://host:port",
+    "default": "",
+    "hint": "如果 AstrBot 部署在远程服务器，这里填公网可访问地址，例如 https://bot.example.com/kuro"
+  }
+}
