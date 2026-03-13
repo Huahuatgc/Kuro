@@ -301,8 +301,23 @@
       loginBtn.disabled = !(validatePhone() && validateCode());
     }
 
-    phoneInput.addEventListener("input", refreshState);
-    codeInput.addEventListener("input", refreshState);
+    const syncEvents = ["input", "change", "keyup", "paste", "blur"];
+    for (const evt of syncEvents) {
+      phoneInput.addEventListener(evt, refreshState);
+      codeInput.addEventListener(evt, refreshState);
+    }
+    window.addEventListener("pageshow", () => {
+      setTimeout(refreshState, 50);
+      setTimeout(refreshState, 500);
+    });
+    let warmupTick = 0;
+    const warmupTimer = setInterval(() => {
+      refreshState();
+      warmupTick += 1;
+      if (warmupTick >= 20) {
+        clearInterval(warmupTimer);
+      }
+    }, 300);
     refreshState();
 
     function postJson(url, data) {
@@ -323,31 +338,38 @@
       return payload;
     }
 
-    initGeetest4({ captchaId: "%CAPTCHA_ID%", product: "%PRODUCT%" }, function (captcha) {
-      captcha.onSuccess(async function () {
-        const validate = captcha.getValidate();
-        if (!validate) {
-          setStatus("GeeTest 尚未完成。");
-          return;
-        }
-        validate.captcha_id = "%CAPTCHA_ID%";
-        setStatus("正在请求发送短信...");
-        try {
-          const payload = await postJson("/api/send_sms", { mobile: phoneInput.value.trim(), geeTestData: validate });
-          setStatus("短信请求已发送，请查看结果。");
-          setResult(payload);
-        } catch (err) {
-          setStatus("发送短信失败。");
-          setResult(err);
-        }
-      });
-      captcha.onError(function () { setStatus("GeeTest 初始化失败。"); });
+    if (typeof initGeetest4 !== "function") {
+      setStatus("GeeTest 脚本加载失败，请刷新页面或切换网络后重试。");
       sendBtn.addEventListener("click", function () {
-        resultBox.style.display = "none";
-        setStatus("请完成 GeeTest 验证。");
-        captcha.showBox();
+        setStatus("GeeTest 未加载成功，请刷新页面后重试。");
       });
-    });
+    } else {
+      initGeetest4({ captchaId: "%CAPTCHA_ID%", product: "%PRODUCT%" }, function (captcha) {
+        captcha.onSuccess(async function () {
+          const validate = captcha.getValidate();
+          if (!validate) {
+            setStatus("GeeTest 尚未完成。");
+            return;
+          }
+          validate.captcha_id = "%CAPTCHA_ID%";
+          setStatus("正在请求发送短信...");
+          try {
+            const payload = await postJson("/api/send_sms", { mobile: phoneInput.value.trim(), geeTestData: validate });
+            setStatus("短信请求已发送，请查看结果。");
+            setResult(payload);
+          } catch (err) {
+            setStatus("发送短信失败。");
+            setResult(err);
+          }
+        });
+        captcha.onError(function () { setStatus("GeeTest 初始化失败。"); });
+        sendBtn.addEventListener("click", function () {
+          resultBox.style.display = "none";
+          setStatus("请完成 GeeTest 验证。");
+          captcha.showBox();
+        });
+      });
+    }
 
     loginBtn.addEventListener("click", async function () {
       setStatus("正在登录...");

@@ -664,14 +664,28 @@ class KuroSignPlugin(Star):
                 self.schedule_store.mark_run(error_payload)
                 logger.error(f"kuro scheduled sign failed: {exc}")
 
+    async def _wait_login_success(self, owner_key: str, timeout_sec: int = 180, poll_sec: int = 3) -> dict[str, Any] | None:
+        rounds = max(1, timeout_sec // poll_sec)
+        for _ in range(rounds):
+            await asyncio.sleep(poll_sec)
+            payload = await asyncio.to_thread(self.bridge.status, owner_key)
+            if payload.get("logged_in"):
+                return payload
+        return None
+
     @filter.command("kuro_login")
     async def kuro_login(self, event: AstrMessageEvent):
-        url = await asyncio.to_thread(self.bridge.login_url, self._owner_key(event))
+        owner_key = self._owner_key(event)
+        url = await asyncio.to_thread(self.bridge.login_url, owner_key)
         yield event.plain_result(
             "打开下方登录页，完成极验和短信登录：\n"
             f"{url}\n\n"
-            "登录成功后可执行 /kuro_status、/kuro_sign、/kuro_waves_sign、/kuro_bbs_sign"
+            "登录成功后可执行 /kuro_sign"
         )
+        logged_in_payload = await self._wait_login_success(owner_key)
+        if logged_in_payload:
+            user_name = logged_in_payload.get("userName") or logged_in_payload.get("userId") or "-"
+            yield event.plain_result(f"登录成功：{user_name}")
 
     @filter.command("kuro_status")
     async def kuro_status(self, event: AstrMessageEvent):
