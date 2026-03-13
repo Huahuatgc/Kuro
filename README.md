@@ -1,4 +1,4 @@
-﻿# astrbot_plugin_kuro_sign
+# astrbot_plugin_kuro_sign
 
 AstrBot 插件：基于网页登录获取 Kuro token，支持鸣潮签到、社区签到、定时签到和管理员 WebUI。
 
